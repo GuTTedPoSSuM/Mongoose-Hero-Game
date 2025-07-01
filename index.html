@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mongoose Hero Game</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+        }
+        canvas {
+            border: 2px solid #333;
+            background-color: #87ceeb;
+        }
+        #score {
+            font-size: 24px;
+            margin: 10px 0;
+        }
+        #gameOver {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="score">Score: 0</div>
+    <canvas id="gameCanvas" width="800" height="400"></canvas>
+    <div id="gameOver">
+        <h1>Game Over!</h1>
+        <p>Final Score: <span id="finalScore">0</span></p>
+        <button onclick="restartGame()">Restart</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('score');
+        const gameOverDisplay = document.getElementById('gameOver');
+        const finalScoreDisplay = document.getElementById('finalScore');
+
+        // Mongoose (player) properties
+        let mongoose = {
+            x: 50,
+            y: canvas.height - 50,
+            width: 40,
+            height: 40,
+            speed: 5,
+            dy: 0,
+            gravity: 0.5,
+            jumpPower: -10,
+            grounded: false
+        };
+
+        // Game objects
+        let foods = [];
+        let enemies = [];
+        let score = 0;
+        let gameActive = true;
+
+        // Keyboard controls
+        let keys = { ArrowLeft: false, ArrowRight: false, ArrowUp: false };
+
+        // Event listeners for controls
+        document.addEventListener('keydown', (e) => {
+            if (e.key in keys) keys[e.key] = true;
+            if (e.key === 'ArrowUp' && mongoose.grounded) {
+                mongoose.dy = mongoose.jumpPower;
+                mongoose.grounded = false;
+            }
+        });
+        document.addEventListener('keyup', (e) => {
+            if (e.key in keys) keys[e.key] = false;
+        });
+
+        // Food object
+        function createFood() {
+            return {
+                x: canvas.width,
+                y: canvas.height - Math.random() * 100 - 50,
+                width: 20,
+                height: 20,
+                speed: 3
+            };
+        }
+
+        // Enemy object
+        function createEnemy() {
+            return {
+                x: canvas.width,
+                y: canvas.height - 40,
+                width: 50,
+                height: 30,
+                speed: 4
+            };
+        }
+
+        // Spawn objects
+        function spawnObjects() {
+            if (Math.random() < 0.02) foods.push(createFood());
+            if (Math.random() < 0.01) enemies.push(createEnemy());
+        }
+
+        // Collision detection
+        function checkCollision(obj1, obj2) {
+            return obj1.x < obj2.x + obj2.width &&
+                   obj1.x + obj1.width > obj2.x &&
+                   obj1.y < obj2.y + obj2.height &&
+                   obj1.y + obj1.height > obj2.y;
+        }
+
+        // Game loop
+        function update() {
+            if (!gameActive) return;
+
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Update mongoose
+            if (keys.ArrowLeft && mongoose.x > 0) mongoose.x -= mongoose.speed;
+            if (keys.ArrowRight && mongoose.x < canvas.width - mongoose.width) mongoose.x += mongoose.speed;
+
+            // Apply gravity
+            mongoose.dy += mongoose.gravity;
+            mongoose.y += mongoose.dy;
+
+            // Ground collision
+            if (mongoose.y > canvas.height - mongoose.height) {
+                mongoose.y = canvas.height - mongoose.height;
+                mongoose.dy = 0;
+                mongoose.grounded = true;
+            }
+
+            // Draw mongoose
+            ctx.fillStyle = 'brown';
+            ctx.fillRect(mongoose.x, mongoose.y, mongoose.width, mongoose.height);
+            ctx.fillStyle = 'black';
+            ctx.fillRect(mongoose.x + 30, mongoose.y + 10, 5, 5); // Eye
+            ctx.fillRect(mongoose.x, mongoose.y + 30, 10, 5); // Tail
+
+            // Update and draw food
+            foods.forEach((food, index) => {
+                food.x -= food.speed;
+                ctx.fillStyle = 'gold';
+                ctx.beginPath();
+                ctx.arc(food.x + food.width / 2, food.y + food.height / 2, food.width / 2, 0, Math.PI * 2);
+                ctx.fill();
+
+                if (checkCollision(mongoose, food)) {
+                    foods.splice(index, 1);
+                    score += 10;
+                    scoreDisplay.textContent = `Score: ${score}`;
+                }
+
+                if (food.x < -food.width) foods.splice(index, 1);
+            });
+
+            // Update and draw enemies
+            enemies.forEach((enemy, index) => {
+                enemy.x -= enemy.speed;
+                ctx.fillStyle = 'green';
+                ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
+                ctx.fillStyle = 'red';
+                ctx.fillRect(enemy.x + 40, enemy.y + 10, 5, 5); // Eye
+
+                if (checkCollision(mongoose, enemy)) {
+                    gameActive = false;
+                    finalScoreDisplay.textContent = score;
+                    gameOverDisplay.style.display = 'block';
+                }
+
+                if (enemy.x < -enemy.width) enemies.splice(index, 1);
+            });
+
+            // Spawn new objects
+            spawnObjects();
+
+            requestAnimationFrame(update);
+        }
+
+        // Restart game
+        function restartGame() {
+            mongoose.x = 50;
+            mongoose.y = canvas.height - 50;
+            mongoose.dy = 0;
+            mongoose.grounded = false;
+            foods = [];
+            enemies = [];
+            score = 0;
+            scoreDisplay.textContent = `Score: ${score}`;
+            gameOverDisplay.style.display = 'none';
+            gameActive = true;
+            update();
+        }
+
+        // Start game
+        update();
+    </script>
+</body>
+</html>
